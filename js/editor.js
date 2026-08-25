@@ -1,92 +1,105 @@
 export class MonacoEditorManager {
   constructor() {
     this.editor = null;
+    this.monaco = null;
     this.currentModel = null;
-    this.changeListener = null;
+    this.changeListeners = [];
   }
 
   async init(containerId) {
     return new Promise((resolve) => {
-      if (typeof require !== 'undefined' && require.config) {
-        require.config({
-          paths: {
-            vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs'
+      window.require.config({
+        paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs' }
+      });
+
+      window.require(['vs/editor/editor.main'], (monaco) => {
+        this.monaco = monaco;
+
+        // Registro de linguagens personalizadas (se necessário)
+        monaco.languages.register({ id: 'mcfunction' });
+        monaco.languages.setMonarchTokensProvider('mcfunction', {
+          tokenizer: {
+            root: [
+              [/^#.*$/, 'comment'],
+              [/\b(give|tp|setblock|fill|execute|say|tellraw|summon|effect|clear)\b/, 'keyword'],
+              [/@[a-eprs]/, 'variable']
+            ]
           }
         });
 
-        require(['vs/editor/editor.main'], () => {
-          const container = document.getElementById(containerId);
-          if (!container) return resolve(null);
-
-          this.editor = monaco.editor.create(container, {
-            value: '',
-            language: 'json',
-            theme: 'vs-dark',
-            automaticLayout: true,
-            fontSize: 14,
-            minimap: { enabled: false },
-            scrollBeyondLastLine: false,
-            tabSize: 2
-          });
-
-          resolve(this.editor);
+        const container = document.getElementById(containerId);
+        this.editor = monaco.editor.create(container, {
+          theme: 'vs-dark',
+          automaticLayout: true,
+          fontSize: 14,
+          fontFamily: "'Cascadia Code', 'Fira Code', Consolas, monospace",
+          minimap: { enabled: true },
+          tabSize: 2,
+          scrollBeyondLastLine: false
         });
-      } else {
-        console.warn('Monaco Loader não foi encontrado no HTML.');
-        resolve(null);
-      }
+
+        resolve();
+      });
     });
   }
 
   openFile(filePath, content) {
-    if (!this.editor) return;
+    if (!this.monaco || !this.editor) return;
 
-    const extension = filePath.split('.').pop().toLowerCase();
+    const ext = filePath.split('.').pop().toLowerCase();
     let language = 'plaintext';
 
-    if (extension === 'json') language = 'json';
-    else if (extension === 'js' || extension === 'ts') language = 'javascript';
-    else if (extension === 'mcfunction') language = 'plaintext';
+    if (ext === 'json') language = 'json';
+    else if (ext === 'js') language = 'javascript';
+    else if (ext === 'mcfunction') language = 'mcfunction';
+    else if (ext === 'md') language = 'markdown';
 
-    const newModel = monaco.editor.createModel(content, language);
-    
-    if (this.currentModel) {
-      this.currentModel.dispose();
+    const uri = this.monaco.Uri.parse(`inmemory://model/${filePath}`);
+    let model = this.monaco.editor.getModel(uri);
+
+    if (!model) {
+      model = this.monaco.editor.createModel(content, language, uri);
+    } else {
+      if (model.getValue() !== content) {
+        model.setValue(content);
+      }
+      this.monaco.editor.setModelLanguage(model, language);
     }
 
-    this.currentModel = newModel;
-    this.editor.setModel(this.currentModel);
+    this.editor.setModel(model);
+    this.currentModel = model;
 
-    if (this.changeListener) {
-      this.changeListener(this.editor.getValue());
-    }
+    // Notifica listeners sobre mudanças de conteúdo
+    model.onDidChangeContent(() => {
+      const currentVal = model.getValue();
+      this.changeListeners.forEach((cb) => cb(currentVal));
+    });
+  }
+
+  // Permite adicionar atalho de teclado diretamente no Monaco
+  addSaveAction(onSaveCallback) {
+    if (!this.editor || !this.monaco) return;
+    this.editor.addCommand(this.monaco.KeyMod.CtrlCmd | this.monaco.KeyCode.KeyS, () => {
+      onSaveCallback();
+    });
   }
 
   onChange(callback) {
-    if (!this.editor) return;
-    this.editor.onDidChangeModelContent(() => {
-      if (callback) callback(this.editor.getValue());
-    });
+    this.changeListeners.push(callback);
   }
 
   insertText(text) {
     if (!this.editor) return;
     const selection = this.editor.getSelection();
-    const range = new monaco.Range(
-      selection.startLineNumber,
-      selection.startColumn,
-      selection.endLineNumber,
-      selection.endColumn
-    );
     const id = { major: 1, minor: 1 };
-    const op = { identifier: id, range: range, text: text, forceMoveMarkers: true };
+    const op = { identifier: id, range: selection, text: text, forceMoveMarkers: true };
     this.editor.executeEdits('mobile-toolbar', [op]);
     this.editor.focus();
   }
 
   clear() {
     if (this.editor) {
-      this.editor.setValue('');
+      this.editor.setModel(null);
     }
   }
 }

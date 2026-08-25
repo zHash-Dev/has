@@ -12,6 +12,7 @@
   --border-color: #232733;
   --input-bg: #181b22;
   --danger: #ef4444;
+  --warning: #f59e0b; /* Amarelo/Laranja para alertas e arquivos modificados */
 }
 
 * {
@@ -259,17 +260,23 @@ html {
 }
 
 .tab {
-  padding: 0 18px;
+  padding: 0 16px;
   background: var(--bg-tab);
   color: var(--text-main);
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   font-size: 0.88rem;
   border-right: 1px solid var(--border-color);
   cursor: pointer;
   white-space: nowrap;
-  transition: all 0.2s;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.tab:hover {
+  background: #191c24;
+  color: var(--text-bright);
 }
 
 .tab.active {
@@ -279,16 +286,29 @@ html {
   font-weight: 600;
 }
 
+/* Estilização do texto da aba e indicador de modificado */
+.tab span {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* Destaque visual em tom amarelo/laranja na bolinha • de arquivo não salvo */
+.tab span:first-child {
+  letter-spacing: 0.5px;
+}
+
 .tab-close-btn {
-  margin-left: 4px;
+  margin-left: 6px;
   padding: 2px 6px;
   border-radius: 4px;
-  font-size: 0.9rem;
+  font-size: 0.75rem;
   opacity: 0.5;
+  transition: all 0.15s ease;
 }
+
 .tab-close-btn:hover {
   opacity: 1;
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(239, 68, 68, 0.2);
   color: var(--danger);
 }
 
@@ -352,7 +372,7 @@ html {
   z-index: 5;
 }
 
-/* MODAL E FORMULÁRIOS MODERNIZADOS (INPUTS) */
+/* MODAL E FORMULÁRIOS MODERNIZADOS */
 .modal {
   margin: auto;
   border: 1px solid var(--border-color);
@@ -360,14 +380,17 @@ html {
   background: var(--bg-sidebar);
   color: var(--text-bright);
   padding: 24px;
-  max-width: 650px;
-  width: 90%;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.8);
+  width: 90vw;
+  max-width: 900px;
+  height: 80vh;
+  max-height: 650px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.85);
+  overflow: hidden;
 }
 
 .modal::backdrop {
-  background: rgba(0, 0, 0, 0.8);
-  backdrop-filter: blur(4px);
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(6px);
 }
 
 .modal-close {
@@ -429,6 +452,41 @@ input[type="file"]::file-selector-button {
 input[type="file"]::file-selector-button:hover {
   background: #252a36;
   border-color: var(--accent);
+}
+
+/* ESTILIZAÇÃO DO MODAL DE CONFIRMAÇÃO E PROMPT */
+.input-prompt-modal {
+  max-width: 480px !important;
+  height: auto !important;
+  max-height: 90vh !important;
+  padding: 24px !important;
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.85);
+}
+
+.input-prompt-modal .form-group {
+  margin: 16px 0;
+}
+
+.prompt-message {
+  font-size: 0.95rem;
+  color: var(--text-bright);
+  margin: 18px 0 24px 0;
+  line-height: 1.5;
+}
+
+.prompt-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.prompt-actions .btn {
+  padding: 9px 18px;
+  font-size: 0.88rem;
+  border-radius: 6px;
 }
 
 /* TECLADO MOBILE */
@@ -556,31 +614,11 @@ input[type="file"]::file-selector-button:hover {
   }
 }
 
-/* MODAL GRANDE E IMERSIVO */
-.modal {
-  margin: auto;
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
-  background: var(--bg-sidebar);
-  color: var(--text-bright);
-  padding: 24px;
-  width: 90vw;
-  max-width: 900px;
-  height: 80vh;
-  max-height: 650px;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.85);
-  overflow: hidden;
-}
-
-.modal::backdrop {
-  background: rgba(0, 0, 0, 0.85);
-  backdrop-filter: blur(6px);
-}
-
 /* LAYOUT DAS FERRAMENTAS DENTRO DO MODAL */
 .tools-layout {
   display: flex;
-  height: 80vh; /* Define uma altura fixa para a modal */
+  gap: 20px;
+  height: 80vh;
   max-height: 600px;
   overflow: hidden;
 }
@@ -670,33 +708,16 @@ input[type="file"]::file-selector-button:hover {
   box-shadow: 0 0 10px var(--accent-glow);
 }
 
-
-/* Layout da modal de ferramentas */
-.tools-layout {
-  display: flex;
-  gap: 20px;
-  height: 80vh; /* Define uma altura máxima para a modal */
-  max-height: 600px;
-}
-
-#tools-form-container {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  overflow: hidden; /* Mantém os botões fixos no rodapé */
-}
-
 /* Área de conteúdo que receberá o scroll em qualquer passo */
 .wizard-step-content {
   flex: 1;
   overflow-y: auto;
-  padding-right: 8px; /* Espaço para a barra de rolagem não sobrepor os cards */
+  padding-right: 8px;
 }
 
 /* Customização da barra de rolagem */
 .wizard-step-content::-webkit-scrollbar {
-  width: 8x;
+  width: 8px;
 }
 
 .wizard-step-content::-webkit-scrollbar-track {
@@ -704,18 +725,17 @@ input[type="file"]::file-selector-button:hover {
 }
 
 .wizard-step-content::-webkit-scrollbar-thumb {
-background: #424242;
+  background: #424242;
 }
 
-
 .wizard-step-content::-webkit-scrollbar-thumb:hover {
-background: #4e4e4e; 
+  background: #4e4e4e; 
 }
 
 /* MODAL DE EXPORTAÇÃO CUSTOMIZADO */
 .export-modal {
-  max-width: 580px !important;
-  height: auto !important;
+  max-width: 800px !important;
+  height: 600px !important;
   max-height: none !important;
 }
 
@@ -799,4 +819,4 @@ background: #4e4e4e;
   font-size: 0.8rem;
   color: var(--text-main);
   margin-top: 2px;
-}
+} 

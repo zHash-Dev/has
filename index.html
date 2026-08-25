@@ -19,7 +19,7 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
 
   <!-- Evita erro 404 de Favicon usando um ícone SVG direto no navegador -->
-<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💥</text></svg>">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💥</text></svg>">
 </head>
 
 <body>
@@ -142,6 +142,25 @@
         </button>
       </div>
     </div>
+  </dialog>
+
+  <!-- MODAL GENÉRICO DE INPUT (Substitui o prompt/confirm nativo) -->
+  <dialog id="modal-prompt" class="modal input-prompt-modal">
+    <div class="modal-header">
+      <h3 id="prompt-title">Inserir Dados</h3>
+      <button id="modal-prompt-close" class="modal-close">✕</button>
+    </div>
+    <form id="prompt-form" method="dialog">
+      <div class="form-group" id="prompt-input-group">
+        <label id="prompt-label" for="prompt-input">Nome:</label>
+        <input type="text" id="prompt-input" autocomplete="off" />
+      </div>
+      <p id="prompt-message" class="prompt-message hidden"></p>
+      <div class="prompt-actions">
+        <button type="button" id="prompt-cancel" class="btn btn-secondary">Cancelar</button>
+        <button type="submit" id="prompt-confirm" class="btn btn-primary">Confirmar</button>
+      </div>
+    </form>
   </dialog>
 
   <!-- MENU DE CONTEXTO CUSTOMIZADO -->

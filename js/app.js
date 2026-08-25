@@ -15,12 +15,16 @@ class App {
     this.contextNodePath = null;
     this.contextIsFolder = false;
     this.copiedNodePath = null;
+    this.dirtyFiles = new Set(); // Conjunto de arquivos modificados sem salvar
   }
 
   async init() {
     try {
       await this.storage.init();
       await this.editorManager.init('monaco-container');
+
+      // Adiciona suporte ao atalho Ctrl+S no editor Monaco
+      this.editorManager.addSaveAction(() => this.saveCurrentFile());
 
       this.bindUIEvents();
       await this.loadInitialProject();
@@ -47,7 +51,61 @@ class App {
     this.renderFileTree();
   }
 
-  // Função auxiliar para carregar a imagem icon_base.png do servidor e converter para Data URL
+  showCustomPrompt(title, label, defaultValue = '', isConfirm = false) {
+    return new Promise((resolve) => {
+      const modal = document.getElementById('modal-prompt');
+      const titleEl = document.getElementById('prompt-title');
+      const labelEl = document.getElementById('prompt-label');
+      const inputEl = document.getElementById('prompt-input');
+      const inputGroup = document.getElementById('prompt-input-group');
+      const msgEl = document.getElementById('prompt-message');
+      const formEl = document.getElementById('prompt-form');
+      const btnClose = document.getElementById('modal-prompt-close');
+      const btnCancel = document.getElementById('prompt-cancel');
+
+      titleEl.innerText = title;
+
+      if (isConfirm) {
+        inputGroup.classList.add('hidden');
+        msgEl.classList.remove('hidden');
+        msgEl.innerText = label;
+      } else {
+        inputGroup.classList.remove('hidden');
+        msgEl.classList.add('hidden');
+        labelEl.innerText = label;
+        inputEl.value = defaultValue;
+      }
+
+      const cleanup = () => {
+        formEl.onsubmit = null;
+        btnClose.onclick = null;
+        btnCancel.onclick = null;
+        if (typeof modal.close === 'function') modal.close();
+        else modal.classList.add('hidden');
+      };
+
+      formEl.onsubmit = (e) => {
+        e.preventDefault();
+        const value = isConfirm ? true : inputEl.value.trim();
+        cleanup();
+        resolve(value || null);
+      };
+
+      btnCancel.onclick = () => { cleanup(); resolve(isConfirm ? false : null); };
+      btnClose.onclick = () => { cleanup(); resolve(isConfirm ? false : null); };
+
+      if (typeof modal.showModal === 'function') modal.showModal();
+      else modal.classList.remove('hidden');
+
+      if (!isConfirm) {
+        setTimeout(() => {
+          inputEl.focus();
+          inputEl.select();
+        }, 50);
+      }
+    });
+  }
+
   async loadBaseIconDataUrl() {
     try {
       const response = await fetch('../icon_base.png');
@@ -71,14 +129,12 @@ class App {
     const rpUuidHeader = crypto.randomUUID();
     const rpUuidModule = crypto.randomUUID();
 
-    // Carrega o ícone vindo do backend
     const iconBaseData = await this.loadBaseIconDataUrl();
 
     return {
       id: crypto.randomUUID(),
       name: formattedName,
       files: {
-        // --- BEHAVIOR PACK (BP) ---
         'BP/manifest.json': JSON.stringify({
           format_version: 2,
           header: {
@@ -108,7 +164,6 @@ class App {
         'BP/blocks/.gitkeep': '',
         'BP/entities/.gitkeep': '',
 
-        // --- RESOURCE PACK (RP) ---
         'RP/manifest.json': JSON.stringify({
           format_version: 2,
           header: {
@@ -144,13 +199,14 @@ class App {
   }
 
   async createNewProject() {
-    const name = prompt('Nome do Novo Projeto:', 'Novo_Addon');
+    const name = await this.showCustomPrompt('Novo Projeto', 'Nome do Novo Projeto:', 'Novo_Addon');
     if (!name) return;
 
     this.currentProject = await this.createDefaultProjectData(name);
     this.vfs.loadStructure(this.currentProject.files);
 
     this.openTabs = [];
+    this.dirtyFiles.clear();
     this.activeFilePath = null;
     this.editorManager.clear();
 
@@ -165,20 +221,25 @@ class App {
   }
 
   bindUIEvents() {
+    // Atalho Ctrl+S Global
+    window.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        this.saveCurrentFile();
+      }
+    });
+
     const btnNewProj = document.getElementById('btn-new-project');
     if (btnNewProj) btnNewProj.onclick = () => this.createNewProject();
 
-    // Configuração do botão de exportação e do modal
     const btnExport = document.getElementById('btn-export-mcaddon');
     const modalExport = document.getElementById('modal-export');
     const modalExportClose = document.getElementById('modal-export-close');
     const exportCards = document.querySelectorAll('.export-card');
 
     if (btnExport && modalExport) {
-      // Altera o rótulo do botão principal para refletir a nova ação
       btnExport.innerHTML = '<i class="fa-solid fa-file-export"></i> Exportar';
       
-      // Abre o modal ao clicar em Exportar
       btnExport.onclick = () => {
         if (typeof modalExport.showModal === 'function') {
           modalExport.showModal();
@@ -198,7 +259,6 @@ class App {
       };
     }
 
-    // Configuração de clique para cada opção de exportação dentro do modal
     exportCards.forEach((card) => {
       card.onclick = async () => {
         const mode = card.getAttribute('data-mode');
@@ -268,10 +328,15 @@ class App {
       };
     });
 
+    // Evento de alteração de conteúdo do arquivo
     this.editorManager.onChange((content) => {
       if (this.activeFilePath) {
+        // Marca o arquivo como modificado (dirty)
+        if (!this.dirtyFiles.has(this.activeFilePath)) {
+          this.dirtyFiles.add(this.activeFilePath);
+          this.renderTabs();
+        }
         this.vfs.writeFile(this.activeFilePath, content, false);
-        this.triggerSave();
       }
     });
 
@@ -281,6 +346,15 @@ class App {
     });
 
     this.bindContextMenuEvents();
+  }
+
+  async saveCurrentFile() {
+    if (!this.activeFilePath) return;
+    await this.triggerSave();
+    this.dirtyFiles.delete(this.activeFilePath);
+    this.renderTabs();
+    const fileName = this.activeFilePath.split('/').pop();
+    this.log(`Arquivo "${fileName}" salvo com sucesso!`, 'info');
   }
 
   toggleSidebar(forceState) {
@@ -388,8 +462,22 @@ class App {
     this.renderFileTree();
   }
 
-  closeTab(filePath, event) {
+  async closeTab(filePath, event) {
     if (event) event.stopPropagation();
+
+    // Pergunta de confirmação se o arquivo contiver alterações pendentes
+    if (this.dirtyFiles.has(filePath)) {
+      const fileName = filePath.split('/').pop();
+      const confirmClose = await this.showCustomPrompt(
+        'Fechar sem salvar',
+        `O arquivo "${fileName}" tem alterações não salvas. Deseja fechar assim mesmo?`,
+        '',
+        true
+      );
+      if (!confirmClose) return;
+      this.dirtyFiles.delete(filePath);
+    }
+
     this.openTabs = this.openTabs.filter((p) => p !== filePath);
 
     if (this.activeFilePath === filePath) {
@@ -413,7 +501,12 @@ class App {
       tab.className = `tab ${path === this.activeFilePath ? 'active' : ''}`;
 
       const name = path.split('/').pop();
-      tab.innerText = name;
+      const isDirty = this.dirtyFiles.has(path);
+
+      // Exibe a bolinha de modificado se houver edições pendentes
+      const titleSpan = document.createElement('span');
+      titleSpan.innerText = isDirty ? `${name} •` : name;
+      tab.appendChild(titleSpan);
 
       const closeBtn = document.createElement('span');
       closeBtn.className = 'tab-close-btn';
@@ -445,16 +538,20 @@ class App {
 
     const cmRename = document.getElementById('cm-rename');
     if (cmRename) {
-      cmRename.onclick = () => {
+      cmRename.onclick = async () => {
         if (!this.contextNodePath) return;
         const oldName = this.contextNodePath.split('/').pop();
-        const newName = prompt('Novo nome:', oldName);
+        const newName = await this.showCustomPrompt('Renomear', 'Novo nome:', oldName);
         if (newName && newName !== oldName) {
           const basePath = this.getDirectory(this.contextNodePath);
           const newPath = basePath ? `${basePath}/${newName}` : newName;
           this.vfs.rename(this.contextNodePath, newPath);
           if (this.activeFilePath === this.contextNodePath) this.activeFilePath = newPath;
           this.openTabs = this.openTabs.map((p) => (p === this.contextNodePath ? newPath : p));
+          if (this.dirtyFiles.has(this.contextNodePath)) {
+            this.dirtyFiles.delete(this.contextNodePath);
+            this.dirtyFiles.add(newPath);
+          }
           this.renderFileTree();
           this.renderTabs();
           this.triggerSave();
@@ -464,10 +561,12 @@ class App {
 
     const cmDelete = document.getElementById('cm-delete');
     if (cmDelete) {
-      cmDelete.onclick = () => {
+      cmDelete.onclick = async () => {
         if (!this.contextNodePath) return;
-        if (confirm(`Excluir ${this.contextNodePath}?`)) {
+        const confirmed = await this.showCustomPrompt('Excluir', `Deseja realmente excluir "${this.contextNodePath}"?`, '', true);
+        if (confirmed) {
           this.vfs.delete(this.contextNodePath);
+          this.dirtyFiles.delete(this.contextNodePath);
           this.closeTab(this.contextNodePath);
           this.renderFileTree();
           this.triggerSave();
@@ -476,8 +575,8 @@ class App {
     }
   }
 
-  promptCreateFile(basePath) {
-    const fileName = prompt('Nome do Arquivo (ex: item.json):');
+  async promptCreateFile(basePath) {
+    const fileName = await this.showCustomPrompt('Novo Arquivo', 'Nome do Arquivo (ex: item.json):', '');
     if (!fileName) return;
     const fullPath = basePath ? `${basePath}/${fileName}` : fileName;
     this.vfs.writeFile(fullPath, '', false);
@@ -486,8 +585,8 @@ class App {
     this.triggerSave();
   }
 
-  promptCreateFolder(basePath) {
-    const folderName = prompt('Nome da Pasta:');
+  async promptCreateFolder(basePath) {
+    const folderName = await this.showCustomPrompt('Nova Pasta', 'Nome da Pasta:', '');
     if (!folderName) return;
     const fullPath = basePath ? `${basePath}/${folderName}` : folderName;
     this.vfs.createFolder(fullPath);
@@ -564,6 +663,7 @@ class App {
 
   finalizeImport() {
     this.openTabs = [];
+    this.dirtyFiles.clear();
     this.activeFilePath = null;
     this.renderFileTree();
     this.renderTabs();
@@ -586,4 +686,3 @@ window.addEventListener('DOMContentLoaded', () => {
   const app = new App();
   app.init();
 });
-
