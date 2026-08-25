@@ -1,50 +1,92 @@
-import { registerMinecraftAutocomplete } from '../autocomplete.js';
-
-export class CodeEditor {
-  constructor(containerId) {
-    this.container = document.getElementById(containerId);
+export class MonacoEditorManager {
+  constructor() {
     this.editor = null;
+    this.currentModel = null;
+    this.changeListener = null;
   }
 
-  init(onContentChange) {
+  async init(containerId) {
     return new Promise((resolve) => {
-      require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs' } });
-      require(['vs/editor/editor.main'], () => {
-        registerMinecraftAutocomplete(monaco);
-        
-        this.editor = monaco.editor.create(this.container, {
-          theme: 'vs-dark',
-          automaticLayout: true,
-          fontSize: 13,
-          minimap: { enabled: false }, // Otimizado para celular
-          wordWrap: 'on'
+      if (typeof require !== 'undefined' && require.config) {
+        require.config({
+          paths: {
+            vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs'
+          }
         });
 
-        this.editor.onDidChangeModelContent(() => {
-          if (onContentChange) onContentChange(this.editor.getValue());
-        });
+        require(['vs/editor/editor.main'], () => {
+          const container = document.getElementById(containerId);
+          if (!container) return resolve(null);
 
-        resolve(true);
-      });
+          this.editor = monaco.editor.create(container, {
+            value: '',
+            language: 'json',
+            theme: 'vs-dark',
+            automaticLayout: true,
+            fontSize: 14,
+            minimap: { enabled: false },
+            scrollBeyondLastLine: false,
+            tabSize: 2
+          });
+
+          resolve(this.editor);
+        });
+      } else {
+        console.warn('Monaco Loader não foi encontrado no HTML.');
+        resolve(null);
+      }
     });
   }
 
-  openFile(path, content) {
-    const ext = path.split('.').pop();
-    let lang = 'plaintext';
-    if (ext === 'js' || ext === 'ts') lang = 'javascript';
-    if (ext === 'json') lang = 'json';
-    if (ext === 'mcfunction') lang = 'plaintext';
+  openFile(filePath, content) {
+    if (!this.editor) return;
 
-    const model = monaco.editor.createModel(content, lang);
-    this.editor.setModel(model);
+    const extension = filePath.split('.').pop().toLowerCase();
+    let language = 'plaintext';
+
+    if (extension === 'json') language = 'json';
+    else if (extension === 'js' || extension === 'ts') language = 'javascript';
+    else if (extension === 'mcfunction') language = 'plaintext';
+
+    const newModel = monaco.editor.createModel(content, language);
+    
+    if (this.currentModel) {
+      this.currentModel.dispose();
+    }
+
+    this.currentModel = newModel;
+    this.editor.setModel(this.currentModel);
+
+    if (this.changeListener) {
+      this.changeListener(this.editor.getValue());
+    }
+  }
+
+  onChange(callback) {
+    if (!this.editor) return;
+    this.editor.onDidChangeModelContent(() => {
+      if (callback) callback(this.editor.getValue());
+    });
   }
 
   insertText(text) {
     if (!this.editor) return;
     const selection = this.editor.getSelection();
-    const op = { range: selection, text: text, forceMoveMarkers: true };
+    const range = new monaco.Range(
+      selection.startLineNumber,
+      selection.startColumn,
+      selection.endLineNumber,
+      selection.endColumn
+    );
+    const id = { major: 1, minor: 1 };
+    const op = { identifier: id, range: range, text: text, forceMoveMarkers: true };
     this.editor.executeEdits('mobile-toolbar', [op]);
     this.editor.focus();
+  }
+
+  clear() {
+    if (this.editor) {
+      this.editor.setValue('');
+    }
   }
 }

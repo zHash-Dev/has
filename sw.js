@@ -1,4 +1,4 @@
-const CACHE_NAME = 'has-cache-v2';
+const CACHE_NAME = 'has-cache-v3';
 const ASSETS = [
   './',
   './index.html',
@@ -7,14 +7,9 @@ const ASSETS = [
   './js/idb.js',
   './js/vfs.js',
   './js/editor.js',
-  './js/templates.js',
-  './js/autocomplete.js',
   './js/tools.js',
   './js/toolsCatalog.js',
-  './js/validator.js',
-  './js/exporter.js',
-  'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js',
-  'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js'
+  './js/exporter.js'
 ];
 
 self.addEventListener('install', (e) => {

@@ -54,3 +54,28 @@ export class AddonExporter {
     vfs.loadStructure(importedFiles);
   }
 }
+export async function exportMcAddon(vfs, projectName = 'Addon') {
+  if (typeof JSZip === 'undefined') {
+    alert('Biblioteca JSZip não encontrada.');
+    return;
+  }
+
+  const zip = new JSZip();
+  const files = vfs.getFlatStructure();
+
+  Object.keys(files).forEach((path) => {
+    const file = files[path];
+    if (file && !path.endsWith('.keep')) {
+      const content = typeof file === 'object' ? file.content : file;
+      zip.file(path, content);
+    }
+  });
+
+  const blob = await zip.generateAsync({ type: 'blob' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${projectName.replace(/\s+/g, '_')}.mcaddon`;
+  a.click();
+  URL.revokeObjectURL(url);
+}

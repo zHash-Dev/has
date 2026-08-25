@@ -1,90 +1,97 @@
-export class VirtualFileSystem {
+export class VFS {
   constructor() {
-    this.files = {}; 
-    // Estrutura interna: { "BP/manifest.json": { content: "...", type: "file", isBinary: false } }
+    this.files = {};
+    this.folderStates = {}; // Salva o estado de cada pasta (aberta/fechada)
   }
 
-  loadStructure(files) {
-    this.files = files || {};
+  loadStructure(flatFiles = {}) {
+    this.files = { ...flatFiles };
   }
 
-  createFile(path, content = '', isBinary = false) {
-    this.files[path] = { content, type: 'file', isBinary };
+  getFlatStructure() {
+    return { ...this.files };
   }
 
-  createDirectory(path) {
-    const cleanPath = path.endsWith('/') ? path.slice(0, -1) : path;
-    this.files[cleanPath] = { type: 'dir' };
+  writeFile(path, content, isImage = false) {
+    this.files[path] = { content, isImage };
   }
 
   readFile(path) {
-    return this.files[path] ? this.files[path].content : null;
+    const file = this.files[path];
+    if (!file) return null;
+    if (typeof file === 'string') return { content: file, isImage: false };
+    return file;
   }
 
-  getFileMeta(path) {
-    return this.files[path] || null;
-  }
-
-  writeFile(path, content, isBinary = false) {
-    if (this.files[path]) {
-      this.files[path].content = content;
-      if (isBinary !== undefined) this.files[path].isBinary = isBinary;
-    } else {
-      this.createFile(path, content, isBinary);
-    }
-  }
-
-  deleteItem(path) {
-    Object.keys(this.files).forEach(key => {
-      if (key === path || key.startsWith(path + '/')) {
-        delete this.files[key];
-      }
+  delete(path) {
+    delete this.files[path];
+    Object.keys(this.files).forEach(fp => {
+      if (fp.startsWith(path + '/')) delete this.files[fp];
     });
   }
 
-  renameItem(oldPath, newPath) {
-    Object.keys(this.files).forEach(key => {
-      if (key === oldPath) {
+  rename(oldPath, newPath) {
+    Object.keys(this.files).forEach(fp => {
+      if (fp === oldPath) {
         this.files[newPath] = this.files[oldPath];
         delete this.files[oldPath];
-      } else if (key.startsWith(oldPath + '/')) {
-        const subPath = newPath + key.slice(oldPath.length);
-        this.files[subPath] = this.files[key];
-        delete this.files[key];
+      } else if (fp.startsWith(oldPath + '/')) {
+        const updated = fp.replace(oldPath, newPath);
+        this.files[updated] = this.files[fp];
+        delete this.files[fp];
       }
     });
   }
 
-  exportTree() {
-    return this.files;
+  createFolder(folderPath) {
+    this.writeFile(`${folderPath}/.keep`, '', false);
   }
 
-  /**
-   * Converte a lista plana de caminhos em uma árvore hierárquica estruturada.
-   */
-  getNestedTree() {
-    const root = { name: '', type: 'dir', children: {}, path: '' };
+  toggleFolder(folderPath) {
+    this.folderStates[folderPath] = !this.isFolderOpen(folderPath);
+  }
 
-    Object.keys(this.files).forEach(path => {
-      const parts = path.split('/').filter(Boolean);
-      let current = root;
+  isFolderOpen(folderPath) {
+    return this.folderStates[folderPath] !== false; // Padrão aberto
+  }
+
+  clear() {
+    this.files = {};
+    this.folderStates = {};
+  }
+
+  getTree() {
+    const root = [];
+    const map = {};
+
+    Object.keys(this.files).forEach(filePath => {
+      if (filePath.endsWith('.keep')) return;
+
+      const parts = filePath.split('/');
       let currentPath = '';
 
       parts.forEach((part, index) => {
-        currentPath = currentPath ? `${currentPath}/${part}` : part;
         const isLast = index === parts.length - 1;
-        const itemType = isLast ? this.files[path].type : 'dir';
+        currentPath = currentPath ? `${currentPath}/${part}` : part;
 
-        if (!current.children[part]) {
-          current.children[part] = {
+        if (!map[currentPath]) {
+          const node = {
             name: part,
-            type: itemType,
             path: currentPath,
-            children: {},
-            isBinary: isLast ? !!this.files[path].isBinary : false
+            isFolder: !isLast,
+            children: isLast ? null : []
           };
+          map[currentPath] = node;
+
+          if (index === 0) {
+            root.push(node);
+          } else {
+            const parentPath = parts.slice(0, index).join('/');
+            if (map[parentPath] && map[parentPath].children) {
+              map[parentPath].children.push(node);
+            }
+          }
         }
-        current = current.children[part];
       });
     });
 
