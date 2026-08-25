@@ -711,3 +711,92 @@ background: #424242;
 .wizard-step-content::-webkit-scrollbar-thumb:hover {
 background: #4e4e4e; 
 }
+
+/* MODAL DE EXPORTAÇÃO CUSTOMIZADO */
+.export-modal {
+  max-width: 580px !important;
+  height: auto !important;
+  max-height: none !important;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 12px;
+}
+
+.modal-header h3 {
+  font-size: 1.1rem;
+  color: var(--text-bright);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.modal-header h3 i {
+  color: var(--accent);
+}
+
+.export-description {
+  font-size: 0.88rem;
+  color: var(--text-main);
+  margin-bottom: 16px;
+}
+
+.export-options-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+.export-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.2s ease;
+}
+
+.export-card:hover {
+  border-color: var(--accent);
+  background: rgba(16, 185, 129, 0.08);
+  box-shadow: 0 0 12px var(--accent-glow);
+  transform: translateY(-1px);
+}
+
+.export-card-icon {
+  font-size: 1.5rem;
+  color: var(--accent);
+  width: 40px;
+  height: 40px;
+  background: var(--bg-sidebar);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-color);
+}
+
+.export-card-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.export-card-info strong {
+  color: var(--text-bright);
+  font-size: 0.95rem;
+}
+
+.export-card-info span {
+  font-size: 0.8rem;
+  color: var(--text-main);
+  margin-top: 2px;
+}

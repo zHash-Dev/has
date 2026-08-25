@@ -22,7 +22,6 @@ export function openToolsModal(vfs, modalEl, catalog, onSuccess) {
     return { bpPrefix, rpPrefix };
   };
 
-  // Busca todos os arquivos .json da pasta de itens
   const getExistingItems = (bpPrefix) => {
     const files = vfs.getFiles ? vfs.getFiles() : (vfs.files || {});
     const itemsList = [];
@@ -64,10 +63,9 @@ export function openToolsModal(vfs, modalEl, catalog, onSuccess) {
 
   const formContainer = document.getElementById('tools-form-container');
 
-  // Estados
   let itemWizardState = {
     step: 1, type: 'custom', behavior: 'none', displayName: 'Item',
-    identifier: 'custom:item', imageFile: null, maxStack: 64, durability: 0, color: '#3b82f6'
+    identifier: 'custom:item', imageFile: null, imagePreviewData: null, maxStack: 64, durability: 0, color: '#3b82f6'
   };
 
   let duplicateWizardState = {
@@ -99,7 +97,7 @@ export function openToolsModal(vfs, modalEl, catalog, onSuccess) {
     else if (toolId === 'uuid') renderUuidForm();
   };
 
- // --- WIZARD DE DUPLICAÇÃO DE ITEM ---
+  // --- WIZARD DE DUPLICAÇÃO DE ITEM ---
   const renderDuplicateWizard = (bpPrefix, rpPrefix) => {
     const itemsList = getExistingItems(bpPrefix);
     
@@ -144,7 +142,7 @@ export function openToolsModal(vfs, modalEl, catalog, onSuccess) {
           <input type="text" id="dup-item-id" value="${duplicateWizardState.newIdentifier}" placeholder="Ex: oi_pp">
         </div>
 
-         <div class="form-group" style="margin-bottom: 20px;">
+        <div class="form-group" style="margin-bottom: 20px;">
           <label>Nova Textura (PNG):</label>
           <div style="display: flex; align-items: center; gap: 12px;">
             <input type="file" id="dup-item-file" accept="image/png" style="flex: 1;">
@@ -186,7 +184,6 @@ export function openToolsModal(vfs, modalEl, catalog, onSuccess) {
       try {
         const sourcePath = selectEl.value;
 
-        // Leitura do arquivo original
         let rawData = null;
         if (typeof vfs.readFile === 'function') {
           try { rawData = await vfs.readFile(sourcePath); } catch (e) {}
@@ -203,25 +200,22 @@ export function openToolsModal(vfs, modalEl, catalog, onSuccess) {
         let jsonString = typeof rawData === 'object' && rawData !== null && rawData.content !== undefined ? rawData.content : rawData;
         let jsonContent = typeof jsonString === 'string' ? JSON.parse(jsonString) : jsonString;
 
-        // Extrai o namespace da base (ex: 'hash:pegasus_sandal' -> 'hash')
         let baseNamespace = 'custom';
         const baseIdentifier = jsonContent["minecraft:item"]?.description?.identifier;
         if (baseIdentifier && baseIdentifier.includes(':')) {
           baseNamespace = baseIdentifier.split(':')[0];
         }
 
-        // Trata o input digitado tirando espaços e montando o ID com o namespace base
         const rawShortName = (duplicateWizardState.newIdentifier || 'duplicated_item')
           .trim()
           .toLowerCase()
           .replace(/\s+/g, '_')
-          .replace(/^[^:]+:/, ''); // remove namespace se o usuário digitar por engano
+          .replace(/^[^:]+:/, '');
 
         const shortName = rawShortName || 'duplicated_item';
         const fullIdentifier = `${baseNamespace}:${shortName}`;
         const newPath = `${bpPrefix}/items/${shortName}.json`;
 
-        // Modifica a estrutura oficial do Item
         if (!jsonContent["minecraft:item"]) jsonContent["minecraft:item"] = {};
         if (!jsonContent["minecraft:item"].description) jsonContent["minecraft:item"].description = {};
         jsonContent["minecraft:item"].description.identifier = fullIdentifier;
@@ -233,7 +227,6 @@ export function openToolsModal(vfs, modalEl, catalog, onSuccess) {
         }
         jsonContent["minecraft:item"].components["minecraft:icon"] = { texture: shortName };
 
-        // 1. Salva o novo arquivo JSON do item
         const finalJsonString = JSON.stringify(jsonContent, null, 2);
         if (typeof vfs.writeFile === 'function') {
           await vfs.writeFile(newPath, finalJsonString, false);
@@ -241,26 +234,24 @@ export function openToolsModal(vfs, modalEl, catalog, onSuccess) {
           vfs.files[newPath] = { content: finalJsonString, isImage: false };
         }
 
-        // 2. Processa e salva a textura PNG (se fornecida)
         if (duplicateWizardState.imageFile) {
           const texturePath = `${rpPrefix}/textures/items/${shortName}.png`;
           
           await new Promise((resolve) => {
             const reader = new FileReader();
             reader.onload = async (e) => {
-              const arrayBuffer = e.target.result;
+              const dataUrl = e.target.result;
               if (typeof vfs.writeFile === 'function') {
-                await vfs.writeFile(texturePath, arrayBuffer, true);
+                await vfs.writeFile(texturePath, dataUrl, true);
               } else if (vfs.files) {
-                vfs.files[texturePath] = { content: arrayBuffer, isImage: true };
+                vfs.files[texturePath] = { content: dataUrl, isImage: true };
               }
               resolve();
             };
-            reader.readAsArrayBuffer(duplicateWizardState.imageFile);
+            reader.readAsDataURL(duplicateWizardState.imageFile);
           });
         }
 
-        // 3. Atualiza o item_texture.json do Resource Pack
         const itemTexturePath = `${rpPrefix}/textures/item_texture.json`;
         let textureDataRaw = null;
 
@@ -290,7 +281,6 @@ export function openToolsModal(vfs, modalEl, catalog, onSuccess) {
           vfs.files[itemTexturePath] = { content: updatedTextureString, isImage: false };
         }
 
-        // Sucesso
         if (typeof modalEl.close === 'function') modalEl.close();
         if (onSuccess) onSuccess(newPath);
 
@@ -354,7 +344,9 @@ export function openToolsModal(vfs, modalEl, catalog, onSuccess) {
           <div style="display: flex; align-items: center; gap: 12px;">
             <input type="file" id="wizard-item-file" accept="image/png" style="flex: 1;">
             <div id="item-image-preview" style="width: 128px; height: 128px; border: 1px dashed var(--border-color); border-radius: 6px; display: flex; align-items: center; justify-content: center; background: #111; overflow: hidden; flex-shrink: 0;">
-              <span style="font-size: 0.7rem; color: #666;">Preview</span>
+              ${itemWizardState.imagePreviewData 
+                ? `<img src="${itemWizardState.imagePreviewData}" style="width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated;">`
+                : `<span style="font-size: 0.7rem; color: #666;">Preview</span>`}
             </div>
           </div>
         </div>
@@ -388,7 +380,30 @@ export function openToolsModal(vfs, modalEl, catalog, onSuccess) {
     } else if (step === 2) {
       document.getElementById('wizard-item-name').oninput = (e) => { itemWizardState.displayName = e.target.value; };
       document.getElementById('wizard-item-id').oninput = (e) => { itemWizardState.identifier = e.target.value; };
-      document.getElementById('wizard-item-file').onchange = (e) => { itemWizardState.imageFile = e.target.files[0] || null; };
+      
+      const fileInput = document.getElementById('wizard-item-file');
+      const previewContainer = document.getElementById('item-image-preview');
+
+      fileInput.onchange = (e) => {
+        const file = e.target.files[0] || null;
+        itemWizardState.imageFile = file;
+
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            itemWizardState.imagePreviewData = event.target.result;
+            if (previewContainer) {
+              previewContainer.innerHTML = `<img src="${event.target.result}" style="width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated;">`;
+            }
+          };
+          reader.readAsDataURL(file);
+        } else {
+          itemWizardState.imagePreviewData = null;
+          if (previewContainer) {
+            previewContainer.innerHTML = `<span style="font-size: 0.7rem; color: #666;">Preview</span>`;
+          }
+        }
+      };
     } else if (step === 3) {
       document.getElementById('wizard-stack').oninput = (e) => {
         itemWizardState.maxStack = parseInt(e.target.value);
@@ -405,27 +420,73 @@ export function openToolsModal(vfs, modalEl, catalog, onSuccess) {
       if (itemWizardState.step > 1) { itemWizardState.step--; renderItemWizard(bpPrefix, rpPrefix); }
     };
 
-    document.getElementById('btn-wizard-next').onclick = () => {
+    document.getElementById('btn-wizard-next').onclick = async () => {
       if (itemWizardState.step < 3) {
         itemWizardState.step++;
         renderItemWizard(bpPrefix, rpPrefix);
       } else {
-        const identifier = sanitizeIdentifier(itemWizardState.identifier, 'custom');
-        const shortName = identifier.split(':')[1];
-        const itemPath = `${bpPrefix}/items/${shortName}.json`;
+        try {
+          const identifier = sanitizeIdentifier(itemWizardState.identifier, 'custom');
+          const shortName = identifier.split(':')[1];
+          const itemPath = `${bpPrefix}/items/${shortName}.json`;
 
-        const components = {
-          "minecraft:icon": { texture: shortName },
-          "minecraft:display_name": { value: itemWizardState.displayName },
-          "minecraft:max_stack_size": itemWizardState.maxStack
-        };
-        if (itemWizardState.durability > 0) components["minecraft:durability"] = { max_durability: itemWizardState.durability };
+          const components = {
+            "minecraft:icon": { texture: shortName },
+            "minecraft:display_name": { value: itemWizardState.displayName },
+            "minecraft:max_stack_size": itemWizardState.maxStack
+          };
+          if (itemWizardState.durability > 0) components["minecraft:durability"] = { max_durability: itemWizardState.durability };
 
-        const itemData = { format_version: "1.20.50", "minecraft:item": { description: { identifier }, components } };
-        vfs.writeFile(itemPath, JSON.stringify(itemData, null, 2), false);
+          const itemData = { format_version: "1.20.50", "minecraft:item": { description: { identifier }, components } };
+          
+          if (typeof vfs.writeFile === 'function') {
+            await vfs.writeFile(itemPath, JSON.stringify(itemData, null, 2), false);
+          } else if (vfs.files) {
+            vfs.files[itemPath] = { content: JSON.stringify(itemData, null, 2), isImage: false };
+          }
 
-        modalEl.close();
-        if (onSuccess) onSuccess(itemPath);
+          if (itemWizardState.imagePreviewData) {
+            const texturePath = `${rpPrefix}/textures/items/${shortName}.png`;
+            if (typeof vfs.writeFile === 'function') {
+              await vfs.writeFile(texturePath, itemWizardState.imagePreviewData, true);
+            } else if (vfs.files) {
+              vfs.files[texturePath] = { content: itemWizardState.imagePreviewData, isImage: true };
+            }
+
+            const itemTexturePath = `${rpPrefix}/textures/item_texture.json`;
+            let textureDataRaw = null;
+
+            if (typeof vfs.readFile === 'function') {
+              try { textureDataRaw = await vfs.readFile(itemTexturePath); } catch (e) {}
+            }
+            if (!textureDataRaw && vfs.files) {
+              textureDataRaw = vfs.files[itemTexturePath] || vfs.files['/' + itemTexturePath];
+            }
+
+            let textureJson = { resource_pack_name: "vanilla", texture_name: "atlas.items", texture_data: {} };
+            if (textureDataRaw) {
+              let rawTexString = typeof textureDataRaw === 'object' && textureDataRaw.content !== undefined ? textureDataRaw.content : textureDataRaw;
+              try { textureJson = typeof rawTexString === 'string' ? JSON.parse(rawTexString) : rawTexString; } catch (e) {}
+            }
+
+            if (!textureJson.texture_data) textureJson.texture_data = {};
+            textureJson.texture_data[shortName] = { textures: `textures/items/${shortName}` };
+
+            const updatedTextureString = JSON.stringify(textureJson, null, 2);
+            if (typeof vfs.writeFile === 'function') {
+              await vfs.writeFile(itemTexturePath, updatedTextureString, false);
+            } else if (vfs.files) {
+              vfs.files[itemTexturePath] = { content: updatedTextureString, isImage: false };
+            }
+          }
+
+          if (typeof modalEl.close === 'function') modalEl.close();
+          if (onSuccess) onSuccess(itemPath);
+
+        } catch (err) {
+          console.error("Erro ao criar item:", err);
+          alert("Ocorreu um erro ao criar o item. Verifique o console.");
+        }
       }
     };
   };

@@ -36,10 +36,10 @@
         <span id="save-status" class="status-badge">Saved</span>
       </div>
       <div class="top-actions">
-        <button id="btn-new-project" class="btn btn-primary">+ Novo Projeto</button>
-        <button id="btn-import-zip" class="btn btn-secondary">Importar ZIP</button>
-        <button id="btn-export-mcaddon" class="btn btn-accent">Exportar .mcaddon</button>
-        <button id="btn-tools" class="btn btn-secondary">🛠 Tools</button>
+        <button id="btn-new-project" class="btn btn-primary"><i class="fa-solid fa-plus"></i> Novo Projeto</button>
+        <button id="btn-import-zip" class="btn btn-secondary"><i class="fa-solid fa-folder-open"></i> Importar Pasta</button>
+        <button id="btn-export-mcaddon" class="btn btn-accent"><i class="fa-solid fa-file-export"></i> Exportar</button>
+        <button id="btn-tools" class="btn btn-secondary"><i class="fa-solid fa-tools"></i> Tools</button>
       </div>
     </header>
 
@@ -98,6 +98,51 @@
       <div id="console-logs" class="console-logs"></div>
     </footer>
   </div>
+
+  <!-- MODAL DE EXPORTAÇÃO -->
+  <dialog id="modal-export" class="modal export-modal">
+    <div class="modal-header">
+      <h3><i class="fa-solid fa-file-export"></i> Exportar Projeto</h3>
+      <button id="modal-export-close" class="modal-close">✕</button>
+    </div>
+    <div class="modal-body export-body">
+      <p class="export-description">Escolha o formato e a estrutura desejada para empacotar o seu Addon:</p>
+      
+      <div class="export-options-grid">
+        <button class="export-card" data-mode="mcaddon" data-zip="false">
+          <div class="export-card-icon"><i class="fa-solid fa-box-archive"></i></div>
+          <div class="export-card-info">
+            <strong>.mcaddon</strong>
+            <span>Pacote completo para importação direta no Minecraft.</span>
+          </div>
+        </button>
+
+        <button class="export-card" data-mode="mcaddon" data-zip="true">
+          <div class="export-card-icon"><i class="fa-solid fa-file-zipper"></i></div>
+          <div class="export-card-info">
+            <strong>.zip (Pacote Completo)</strong>
+            <span>Contém as pastas BP e RP juntas em um único arquivo ZIP.</span>
+          </div>
+        </button>
+
+        <button class="export-card" data-mode="bp" data-zip="true">
+          <div class="export-card-icon"><i class="fa-solid fa-gear"></i></div>
+          <div class="export-card-info">
+            <strong>Behavior Pack (.zip)</strong>
+            <span>Exporta apenas o pacote de comportamentos.</span>
+          </div>
+        </button>
+
+        <button class="export-card" data-mode="rp" data-zip="true">
+          <div class="export-card-icon"><i class="fa-solid fa-paint-brush"></i></div>
+          <div class="export-card-info">
+            <strong>Resource Pack (.zip)</strong>
+            <span>Exporta apenas o pacote de recursos e texturas.</span>
+          </div>
+        </button>
+      </div>
+    </div>
+  </dialog>
 
   <!-- MENU DE CONTEXTO CUSTOMIZADO -->
   <div id="context-menu" class="context-menu hidden">

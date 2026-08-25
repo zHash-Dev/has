@@ -2,7 +2,7 @@ import { IndexedDBStorage } from './idb.js';
 import { VFS } from './vfs.js';
 import { MonacoEditorManager } from './editor.js';
 import { openToolsModal } from './tools.js';
-import { exportMcAddon } from './exporter.js';
+import { exportCustomPackage } from './exporter.js';
 
 class App {
   constructor() {
@@ -36,7 +36,7 @@ class App {
     if (projects && projects.length > 0) {
       this.currentProject = projects[0];
     } else {
-      this.currentProject = this.createDefaultProjectData('Meu_Addon');
+      this.currentProject = await this.createDefaultProjectData('Meu_Addon');
       await this.storage.saveProject(this.currentProject);
     }
 
@@ -47,30 +47,98 @@ class App {
     this.renderFileTree();
   }
 
-  createDefaultProjectData(name) {
+  // Função auxiliar para carregar a imagem icon_base.png do servidor e converter para Data URL
+  async loadBaseIconDataUrl() {
+    try {
+      const response = await fetch('../icon_base.png');
+      if (!response.ok) throw new Error('Não foi possível carregar icon_base.png');
+      const blob = await response.blob();
+      return await new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result);
+        reader.readAsDataURL(blob);
+      });
+    } catch (err) {
+      console.warn('Ícone padrão (icon_base.png) não encontrado. Usando imagem transparente fallback.', err);
+      return "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
+    }
+  }
+
+  async createDefaultProjectData(name) {
     const formattedName = name.replace(/\s+/g, '_');
+    const bpUuidHeader = crypto.randomUUID();
+    const bpUuidModule = crypto.randomUUID();
+    const rpUuidHeader = crypto.randomUUID();
+    const rpUuidModule = crypto.randomUUID();
+
+    // Carrega o ícone vindo do backend
+    const iconBaseData = await this.loadBaseIconDataUrl();
+
     return {
       id: crypto.randomUUID(),
       name: formattedName,
       files: {
+        // --- BEHAVIOR PACK (BP) ---
         'BP/manifest.json': JSON.stringify({
           format_version: 2,
           header: {
-            name: formattedName,
-            description: "Addon criado no Hash Addon Studio",
-            uuid: crypto.randomUUID(),
+            name: `${formattedName} Behavior`,
+            description: "Behavior Pack criado no Hash Addon Studio",
+            uuid: bpUuidHeader,
             version: [1, 0, 0],
             min_engine_version: [1, 20, 50]
           },
           modules: [
             {
               type: "data",
-              uuid: crypto.randomUUID(),
+              uuid: bpUuidModule,
+              version: [1, 0, 0]
+            }
+          ],
+          dependencies: [
+            {
+              uuid: rpUuidHeader,
               version: [1, 0, 0]
             }
           ]
         }, null, 2),
-        'BP/scripts/main.js': `import { world } from "@minecraft/server";\n\nworld.afterEvents.playerSpawn.subscribe((event) => {\n  event.player.sendMessage("§aAddon carregado!");\n});`
+        'BP/pack_icon.png': iconBaseData,
+        'BP/scripts/main.js': `import { world } from "@minecraft/server";\n\nworld.afterEvents.playerSpawn.subscribe((event) => {\n  event.player.sendMessage("§aAddon ${formattedName} carregado com sucesso!");\n});`,
+        'BP/items/.gitkeep': '',
+        'BP/blocks/.gitkeep': '',
+        'BP/entities/.gitkeep': '',
+
+        // --- RESOURCE PACK (RP) ---
+        'RP/manifest.json': JSON.stringify({
+          format_version: 2,
+          header: {
+            name: `${formattedName} Resource`,
+            description: "Resource Pack criado no Hash Addon Studio",
+            uuid: rpUuidHeader,
+            version: [1, 0, 0],
+            min_engine_version: [1, 20, 50]
+          },
+          modules: [
+            {
+              type: "resources",
+              uuid: rpUuidModule,
+              version: [1, 0, 0]
+            }
+          ]
+        }, null, 2),
+        'RP/pack_icon.png': iconBaseData,
+        'RP/textures/item_texture.json': JSON.stringify({
+          resource_pack_name: formattedName,
+          texture_name: "atlas.items",
+          texture_data: {}
+        }, null, 2),
+        'RP/textures/terrain_texture.json': JSON.stringify({
+          resource_pack_name: formattedName,
+          texture_name: "atlas.terrain",
+          texture_data: {}
+        }, null, 2),
+        'RP/textures/items/.gitkeep': '',
+        'RP/textures/blocks/.gitkeep': ''
       }
     };
   }
@@ -79,7 +147,7 @@ class App {
     const name = prompt('Nome do Novo Projeto:', 'Novo_Addon');
     if (!name) return;
 
-    this.currentProject = this.createDefaultProjectData(name);
+    this.currentProject = await this.createDefaultProjectData(name);
     this.vfs.loadStructure(this.currentProject.files);
 
     this.openTabs = [];
@@ -97,15 +165,70 @@ class App {
   }
 
   bindUIEvents() {
-    // Top Bar Actions
     const btnNewProj = document.getElementById('btn-new-project');
     if (btnNewProj) btnNewProj.onclick = () => this.createNewProject();
 
+    // Configuração do botão de exportação e do modal
     const btnExport = document.getElementById('btn-export-mcaddon');
-    if (btnExport) btnExport.onclick = () => exportMcAddon(this.vfs, this.currentProject ? this.currentProject.name : 'Addon');
+    const modalExport = document.getElementById('modal-export');
+    const modalExportClose = document.getElementById('modal-export-close');
+    const exportCards = document.querySelectorAll('.export-card');
+
+    if (btnExport && modalExport) {
+      // Altera o rótulo do botão principal para refletir a nova ação
+      btnExport.innerHTML = '<i class="fa-solid fa-file-export"></i> Exportar';
+      
+      // Abre o modal ao clicar em Exportar
+      btnExport.onclick = () => {
+        if (typeof modalExport.showModal === 'function') {
+          modalExport.showModal();
+        } else {
+          modalExport.classList.remove('hidden');
+        }
+      };
+    }
+
+    if (modalExportClose && modalExport) {
+      modalExportClose.onclick = () => {
+        if (typeof modalExport.close === 'function') {
+          modalExport.close();
+        } else {
+          modalExport.classList.add('hidden');
+        }
+      };
+    }
+
+    // Configuração de clique para cada opção de exportação dentro do modal
+    exportCards.forEach((card) => {
+      card.onclick = async () => {
+        const mode = card.getAttribute('data-mode');
+        const asZip = card.getAttribute('data-zip') === 'true';
+        const projectName = this.currentProject ? this.currentProject.name : 'Meu_Addon';
+
+        if (modalExport) {
+          if (typeof modalExport.close === 'function') {
+            modalExport.close();
+          } else {
+            modalExport.classList.add('hidden');
+          }
+        }
+
+        try {
+          this.log(`⏳ Gerando arquivo de exportação (${mode})...`, 'info');
+          await exportCustomPackage(this.vfs, projectName, mode, asZip);
+          this.log(`✓ Exportação de "${projectName}" concluída com sucesso!`, 'info');
+        } catch (err) {
+          console.error('Erro na exportação:', err);
+          this.log('❌ Falha ao exportar o pacote.', 'error');
+        }
+      };
+    });
 
     const btnImport = document.getElementById('btn-import-zip');
-    if (btnImport) btnImport.onclick = () => this.importZipFile();
+    if (btnImport) {
+      btnImport.innerHTML = '<i class="fa-solid fa-folder-open"></i> Importar Pasta';
+      btnImport.onclick = () => this.importFolder();
+    }
 
     const btnTools = document.getElementById('btn-tools');
     if (btnTools) {
@@ -119,7 +242,6 @@ class App {
       };
     }
 
-    // Modal Close
     const btnModalClose = document.getElementById('modal-close');
     if (btnModalClose) {
       btnModalClose.onclick = () => {
@@ -127,7 +249,6 @@ class App {
       };
     }
 
-    // Sidebar
     const btnNewFile = document.getElementById('btn-new-file');
     if (btnNewFile) btnNewFile.onclick = () => this.promptCreateFile('');
 
@@ -140,7 +261,6 @@ class App {
     const closeSidebar = document.getElementById('btn-close-sidebar');
     if (closeSidebar) closeSidebar.onclick = () => this.toggleSidebar(false);
 
-    // Mobile Keyboard Toolbar
     document.querySelectorAll('.mobile-toolbar .sym-btn').forEach((btn) => {
       btn.onclick = () => {
         const char = btn.getAttribute('data-char');
@@ -148,7 +268,6 @@ class App {
       };
     });
 
-    // Editor auto-save listener
     this.editorManager.onChange((content) => {
       if (this.activeFilePath) {
         this.vfs.writeFile(this.activeFilePath, content, false);
@@ -156,7 +275,6 @@ class App {
       }
     });
 
-    // Global Click (esconde menu de contexto)
     document.addEventListener('click', () => {
       const cm = document.getElementById('context-menu');
       if (cm) cm.classList.add('hidden');
@@ -190,6 +308,8 @@ class App {
 
   buildTreeDOM(nodes, parentEl) {
     nodes.forEach((node) => {
+      if (node.name === '.gitkeep') return;
+
       const nodeEl = document.createElement('div');
       nodeEl.className = 'tree-node';
 
@@ -199,12 +319,11 @@ class App {
 
       const isOpen = node.isFolder ? this.vfs.isFolderOpen(node.path) : false;
 
-      // Ícones das Setinhas e da Pasta/Arquivo
-      const arrowIcon = node.isFolder 
-        ? `<i class="fa-solid ${isOpen ? 'fa-chevron-down' : 'fa-chevron-right'}" style="font-size:0.7rem; width:12px; opacity:0.7;"></i>` 
+      const arrowIcon = node.isFolder
+        ? `<i class="fa-solid ${isOpen ? 'fa-chevron-down' : 'fa-chevron-right'}" style="font-size:0.7rem; width:12px; opacity:0.7;"></i>`
         : `<span style="width:12px; display:inline-block;"></span>`;
 
-      const folderFileIcon = node.isFolder 
+      const folderFileIcon = node.isFolder
         ? (isOpen ? '<i class="fa-solid fa-folder-open tree-icon"></i>' : '<i class="fa-solid fa-folder tree-icon"></i>')
         : '<i class="fa-solid fa-file-code tree-icon"></i>';
 
@@ -241,29 +360,33 @@ class App {
     const imageContainer = document.getElementById('image-preview-container');
     const monacoContainer = document.getElementById('monaco-container');
 
-    // Checagem de extensão para visualizador de imagem (PNG/JPG)
     const ext = filePath.split('.').pop().toLowerCase();
-    const isImageFile = ['png', 'jpg', 'jpeg', 'webp', 'tga'].includes(ext) || (file && file.isImage);
+    const isImageFile = ['png', 'jpg', 'jpeg', 'webp', 'tga', 'gif', 'ico'].includes(ext) || (file && file.isImage);
 
     if (isImageFile && file) {
       if (monacoContainer) monacoContainer.classList.add('hidden');
       if (imageContainer) {
         imageContainer.classList.remove('hidden');
         const imgEl = document.getElementById('image-preview');
-        if (imgEl) imgEl.src = file.content;
         const infoEl = document.getElementById('image-info');
-        if (infoEl) infoEl.innerText = `${filePath}`;
+
+        let rawContent = typeof file === 'object' && file.content !== undefined ? file.content : file;
+
+        if (imgEl) {
+          imgEl.src = rawContent || '';
+          imgEl.style.imageRendering = 'pixelated';
+        }
+        if (infoEl) infoEl.innerText = filePath;
       }
     } else {
       if (imageContainer) imageContainer.classList.add('hidden');
       if (monacoContainer) monacoContainer.classList.remove('hidden');
-      this.editorManager.openFile(filePath, file ? file.content : '');
+      this.editorManager.openFile(filePath, file ? (typeof file === 'object' ? file.content : file) : '');
     }
 
     this.renderTabs();
     this.renderFileTree();
   }
-   
 
   closeTab(filePath, event) {
     if (event) event.stopPropagation();
@@ -301,17 +424,6 @@ class App {
       tab.onclick = () => this.openFile(path);
       tabBar.appendChild(tab);
     });
-  }
-
-  showContextMenu(x, y, path, isFolder) {
-    const cm = document.getElementById('context-menu');
-    if (!cm) return;
-    cm.style.left = `${x}px`;
-    cm.style.top = `${y}px`;
-    cm.classList.remove('hidden');
-
-    this.contextNodePath = path;
-    this.contextIsFolder = isFolder;
   }
 
   bindContextMenuEvents() {
@@ -390,37 +502,73 @@ class App {
     return parts.join('/');
   }
 
-  async importZipFile() {
-    if (typeof JSZip === 'undefined') {
-      alert('JSZip não está carregado.');
+  async importFolder() {
+    this.vfs.clear();
+
+    if ('showDirectoryPicker' in window) {
+      try {
+        const dirHandle = await window.showDirectoryPicker();
+        await this.readDirectoryHandle(dirHandle, '');
+      } catch (err) {
+        if (err.name !== 'AbortError') console.error('Erro ao abrir pasta:', err);
+        return;
+      }
+    } else {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.webkitdirectory = true;
+      input.onchange = async (e) => {
+        const files = Array.from(e.target.files);
+        for (const file of files) {
+          const relativePath = file.webkitRelativePath.split('/').slice(1).join('/');
+          if (!relativePath) continue;
+          await this.processAndSaveFile(file, relativePath);
+        }
+        this.finalizeImport();
+      };
+      input.click();
       return;
     }
 
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.zip,.mcaddon,.mcpack';
-    input.onchange = async (e) => {
-      const file = e.target.files[0];
-      if (!file) return;
+    this.finalizeImport();
+  }
 
-      const zip = await JSZip.loadAsync(file);
-      this.vfs.clear();
-
-      for (const [relativePath, zipEntry] of Object.entries(zip.files)) {
-        if (!zipEntry.dir) {
-          const content = await zipEntry.async('string');
-          this.vfs.writeFile(relativePath, content, false);
-        }
+  async readDirectoryHandle(dirHandle, currentPath) {
+    for await (const entry of dirHandle.values()) {
+      const entryPath = currentPath ? `${currentPath}/${entry.name}` : entry.name;
+      if (entry.kind === 'directory') {
+        await this.readDirectoryHandle(entry, entryPath);
+      } else if (entry.kind === 'file') {
+        const file = await entry.getFile();
+        await this.processAndSaveFile(file, entryPath);
       }
+    }
+  }
 
-      this.openTabs = [];
-      this.activeFilePath = null;
-      this.renderFileTree();
-      this.renderTabs();
-      this.triggerSave();
-      this.log(`✓ Arquivo "${file.name}" importado.`, 'info');
-    };
-    input.click();
+  async processAndSaveFile(file, relativePath) {
+    const ext = relativePath.split('.').pop().toLowerCase();
+    const isImage = ['png', 'jpg', 'jpeg', 'webp', 'tga', 'gif', 'ico'].includes(ext);
+
+    if (isImage) {
+      const dataUrl = await new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(e.target.result);
+        reader.readAsDataURL(file);
+      });
+      this.vfs.writeFile(relativePath, dataUrl, true);
+    } else {
+      const textContent = await file.text();
+      this.vfs.writeFile(relativePath, textContent, false);
+    }
+  }
+
+  finalizeImport() {
+    this.openTabs = [];
+    this.activeFilePath = null;
+    this.renderFileTree();
+    this.renderTabs();
+    this.triggerSave();
+    this.log('✓ Pasta importada com sucesso.', 'info');
   }
 
   log(message, type = 'info') {
@@ -438,3 +586,4 @@ window.addEventListener('DOMContentLoaded', () => {
   const app = new App();
   app.init();
 });
+
