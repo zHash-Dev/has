@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Hash Addon Studio</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#111111">
+  <link rel="stylesheet" href="css/main.css">
+
+  <!-- JSZip via CDN para Compressão e Extração de .mcaddon/.zip -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <!-- Monaco Editor Loader -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
+
+  <!-- Boxicons & Font Awesome para Ícones -->
+  <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
+</head>
+
+<body>
+  <div id="app">
+    <!-- BARRA SUPERIOR -->
+    <header class="top-bar">
+      <div class="brand">
+        <button id="toggle-sidebar" class="mobile-only-btn" title="Alternar Sidebar">☰</button>
+        <span class="logo">HAS</span>
+        <span class="app-title">Hash Addon Studio</span>
+      </div>
+      <div class="project-info">
+        <span id="current-project-name">Sem Projeto</span>
+        <span id="save-status" class="status-badge">Saved</span>
+      </div>
+      <div class="top-actions">
+        <button id="btn-new-project" class="btn btn-primary">+ Novo Projeto</button>
+        <button id="btn-import-zip" class="btn btn-secondary">Importar ZIP</button>
+        <button id="btn-export-mcaddon" class="btn btn-accent">Exportar .mcaddon</button>
+        <button id="btn-tools" class="btn btn-secondary">🛠 Tools</button>
+      </div>
+    </header>
+
+    <!-- ÁREA PRINCIPAL CONTAINER -->
+    <div class="main-container">
+      <!-- SIDEBAR / EXPLORADOR -->
+      <aside id="sidebar" class="sidebar">
+        <div class="sidebar-header">
+          <span>EXPLORADOR</span>
+          <div class="sidebar-actions">
+            <button id="btn-new-file" title="Novo Arquivo"><i class="fa-solid fa-file-circle-plus"></i></button>
+            <button id="btn-new-folder" title="Nova Pasta"><i class="fa-solid fa-folder-plus"></i></button>
+            <button id="btn-close-sidebar" class="mobile-only-btn">✕</button>
+          </div>
+        </div>
+        <div id="file-tree" class="file-tree"></div>
+      </aside>
+
+      <!-- ÁREA DO EDITOR -->
+      <main class="editor-area">
+        <!-- BARRA DE ABAS -->
+        <div id="tab-bar" class="tab-bar"></div>
+
+        <!-- MÓDULO DO EDITOR DE CÓDIGO MONACO -->
+        <div id="monaco-container" class="monaco-container"></div>
+
+        <!-- PAINEL DE PRÉ-VISUALIZAÇÃO DE IMAGEM -->
+        <div id="image-preview-container" class="image-preview-container hidden">
+          <div class="image-wrapper">
+            <img id="image-preview" src="" alt="Preview da Imagem" />
+          </div>
+          <div id="image-info" class="image-info"></div>
+        </div>
+
+        <!-- TECLADO DE SÍMBOLOS PARA ANDROID / MOBILE -->
+        <div id="mobile-toolbar" class="mobile-toolbar">
+          <button class="sym-btn" data-char="\t">TAB</button>
+          <button class="sym-btn" data-char="{">{</button>
+          <button class="sym-btn" data-char="}">}</button>
+          <button class="sym-btn" data-char="[">[</button>
+          <button class="sym-btn" data-char="]">]</button>
+          <button class="sym-btn" data-char="(">(</button>
+          <button class="sym-btn" data-char=")">)</button>
+          <button class="sym-btn" data-char="&quot;">"</button>
+          <button class="sym-btn" data-char="'">'</button>
+          <button class="sym-btn" data-char=";">;</button>
+          <button class="sym-btn" data-char="=">=</button>
+          <button class="sym-btn" data-char=":">:</button>
+        </div>
+      </main>
+    </div>
+
+    <!-- TERMINAL / CONSOLE INFERIOR -->
+    <footer class="bottom-bar">
+      <div class="terminal-header">CONSOLE</div>
+      <div id="console-logs" class="console-logs"></div>
+    </footer>
+  </div>
+
+  <!-- MENU DE CONTEXTO CUSTOMIZADO -->
+  <div id="context-menu" class="context-menu hidden">
+    <ul>
+      <li id="cm-new-file"><i class="bx bx-file-plus"></i> Novo Arquivo</li>
+      <li id="cm-new-folder"><i class="bx bx-folder-plus"></i> Nova Pasta</li>
+      <li id="cm-rename"><i class="bx bx-edit"></i> Renomear</li>
+      <li id="cm-copy"><i class="bx bx-copy"></i> Copiar</li>
+      <li id="cm-paste"><i class="bx bx-paste"></i> Colar</li>
+      <li id="cm-delete" class="danger"><i class="bx bx-trash"></i> Excluir</li>
+    </ul>
+  </div>
+
+  <!-- MODAL DE FERRAMENTAS E GERADORES -->
+  <dialog id="modal-container" class="modal">
+    <div class="modal-content">
+      <button id="modal-close" class="modal-close">✕</button>
+      <div id="modal-body"></div>
+    </div>
+  </dialog>
+
+  <!-- APLICAÇÃO PRINCIPAL -->
+  <script type="module" src="js/app.js"></script>
+</body>
+
+</html>
